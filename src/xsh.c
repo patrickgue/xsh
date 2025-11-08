@@ -11,6 +11,9 @@
 #include <sys/prctl.h>
 #include <fcntl.h>
 
+#include <readline/readline.h>
+#include <readline/history.h>
+
 #define XSH_MAX_INPUT 1024
 #define MAX_ARGS 64
 
@@ -65,17 +68,22 @@ int main() {
         }
     }
 
-    char input[XSH_MAX_INPUT];
+    char *input;
 
     while (1) {
         const char *prompt = getenv("PROMPT");
         if (!prompt) prompt = "] ";
-        printf("%s", prompt);
-        fflush(stdout);
 
-        if (!fgets(input, sizeof(input), stdin)) break;
-        input[strcspn(input, "\n")] = '\0';
+        input = readline(prompt);
+
+        /* readline returns NULL on ^D */
+        if (input == NULL) {
+            break;
+        }
+
         if (!*input) continue;
+
+        add_history(input);
 
         char *args[MAX_ARGS];
         int argcount = 0;
