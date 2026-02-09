@@ -16,6 +16,56 @@
 
 #define XSH_MAX_INPUT 1024
 #define MAX_ARGS 64
+#define PROMPT_LEN 256
+
+/*
+  %p   pwd
+  %u   user
+  %h   hostname
+  %#   # for root, % for everyone else
+  %%   %
+ */
+void process_ps1(char *prompt, long prompt_len)
+{
+    int i, len;
+    char *prmcpy = strdup(prompt), buff[128];
+    strcpy(prompt, "");
+    for (i = 0; i < strlen(prmcpy); i++)
+    {
+        if (prmcpy[i] == '%')
+        {
+            i++;
+            switch (prmcpy[i])
+            {
+            case '%':
+                strncat(prompt, "%", prompt_len);
+                break;
+            case '#':
+                strncat(prompt, getuid() == 0 ? "#" : "%", prompt_len);
+                break;
+            case 'h':
+                gethostname(buff, 128);
+                strncat(prompt, buff, 128);
+                break;
+            case 'p':
+                getcwd(buff, 128);
+                strncat(prompt, buff, prompt_len);
+                break;
+            case 'u':
+                strncat(prompt, getlogin(), prompt_len);
+                break;
+            default:
+                strncat(prompt, "??", prompt_len);
+            }
+        }
+        else
+        {
+            len = strlen(prompt);
+            prompt[len] = prmcpy[i];
+            prompt[len + 1] = 0;
+        }
+    }
+}
 
 void handle_sigint(int sig) {
     write(STDOUT_FILENO, "\n", 1);
@@ -41,6 +91,7 @@ char *expand_var(const char *arg) {
 }
 
 int main() {
+    char prompt[PROMPT_LEN];
     if (!isatty(STDIN_FILENO)) {
         execlp("sh", "sh", "-c", "echo xsh", NULL);
         return 0;
@@ -71,9 +122,19 @@ int main() {
     char *input;
 
     while (1) {
-        const char *prompt = getenv("PROMPT");
-        if (!prompt) prompt = "] ";
-
+        if (getenv("PS1") != NULL)
+        {
+            strncpy(prompt, getenv("PS1"), PROMPT_LEN);
+            process_ps1(prompt, PROMPT_LEN);
+        }
+        else if (getenv("PROMPT") != NULL)
+        {
+            strncpy(prompt, getenv("PROMPT"), PROMPT_LEN);
+        }
+        else
+        {
+            strcpy(prompt, "] ");
+        }
         input = readline(prompt);
 
         /* readline returns NULL on ^D */
